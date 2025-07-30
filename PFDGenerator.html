@@ -387,10 +387,8 @@
       });
     }
 
-    // Helper to get filename from src or File
     function getFileName(srcOrFile) {
       if (typeof srcOrFile === 'string') {
-        // For preset images, src is a path
         const parts = srcOrFile.split('/');
         return parts[parts.length - 1];
       } else if (srcOrFile && srcOrFile.name) {
@@ -399,7 +397,6 @@
       return '';
     }
 
-    // Filter thumbnails by search
     function filterThumbnails() {
       const search = document.getElementById('image-search').value.trim().toLowerCase();
       const thumbs = thumbnails.querySelectorAll('.thumbnail');
@@ -413,7 +410,6 @@
       });
     }
 
-    // Attach search event
     document.addEventListener('DOMContentLoaded', function() {
       const searchInput = document.getElementById('image-search');
       searchInput.addEventListener('input', filterThumbnails);
@@ -648,7 +644,7 @@
           }
         }
 
-        // Draw all images (if allowed)
+   
         if (drawImages) {
           images.forEach(img => {
             const x = parseInt(img.style.left, 10) || 0;
@@ -685,7 +681,7 @@
           exportCtx.restore();
         });
 
-        // Draw all pointers (arrows)
+        // Draw all pointers 
         pointers.forEach(ptr => {
           drawPointerArrowExport(exportCtx, ptr.x, ptr.y, ptr.direction);
         });
@@ -719,7 +715,6 @@
       }
     });
 
-    // Draw a pointer arrow on export canvas
     function drawPointerArrowExport(ctx, x, y, direction) {
       ctx.save();
       ctx.translate(x, y);
@@ -1148,7 +1143,6 @@
       stopDrawing();
     }
 
-    // Draw a pointer arrow at (x, y) in the given direction
     function drawPointerArrow(x, y, direction) {
       ctx.save();
       ctx.translate(x, y);
@@ -1169,7 +1163,6 @@
       ctx.restore();
     }
 
-    // Ensure color buttons are rendered after all DOM is ready
     renderPencilColors();
 
     clearAllBtn.addEventListener('click', () => {
@@ -1210,7 +1203,7 @@
       }
     });
 
-    // Set initial state
+
     if (localStorage.getItem('horizontalBar') === 'true') {
       document.body.classList.add('horizontal-bar');
       toggleHorizontal.checked = true;
@@ -1224,7 +1217,7 @@
         document.body.classList.remove('horizontal-bar');
         localStorage.setItem('horizontalBar', 'false');
       }
-      // Trigger a resize to fix canvas/grid
+
       setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
       }, 100);
