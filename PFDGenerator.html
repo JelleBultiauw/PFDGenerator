@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PFD Generator</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #upload-area {
+      width: 330px;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+      box-sizing: border-box;
+      background: #f9f9f9;
+    }
+    #grid-area {
+      flex: 1;
+      position: relative;
+      background-color: #eee;
+      overflow: auto;
+    }
+    .grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: linear-gradient(to right, #ccc 1px, transparent 1px),
+                        linear-gradient(to bottom, #ccc 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
+    }
+    .thumbnail {
+      width: 120px;
+      height: 120px;
+      object-fit: contain;
+      cursor: grab;
+      margin: 5px;
+      background: #fff;
+      border: 1px solid #ccc;
+      display: inline-block;
+      vertical-align: top;
+      box-shadow: 0 0 0 2px #e0e0e0, 0 2px 6px #0001;
+      transition: box-shadow 0.2s;
+    }
+    .thumbnail:hover {
+      box-shadow: 0 0 0 2px #0074d9, 0 4px 12px #0002;
+      border-color: #0074d9;
+    }
+    .draggable-img {
+      width: 120px;
+      height: 120px;
+      object-fit: contain;
+      cursor: grab;
+      position: absolute;
+      z-index: 2;
+      box-shadow: 0 0 0 2px #e0e0e0, 0 2px 6px #0001;
+      border: 1.5px solid #ccc;
+      background: #fff;
+      border-radius: 4px;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .draggable-img:hover {
+      box-shadow: 0 0 0 2px #0074d9, 0 4px 12px #0002;
+      border-color: #0074d9;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .clearfix::after {
+      content: "";
+      clear: both;
+      display: table;
+    }
+    #delete-toggle,
+    #draw-toggle {
+      margin-top: 10px;
+      padding: 5px 10px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      margin-right: 5px;
+    }
+    #delete-toggle {
+      background: red;
+      color: white;
+    }
+    #draw-toggle {
+      background: blue;
+      color: white;
+    }
+    .drawing-mode {
+      cursor: crosshair;
+    }
+    .draggable-text {
+      position: absolute;
+      min-width: 40px;
+      min-height: 24px;
+      background: #fffbe7;
+      border: 1px solid #aaa;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 16px;
+      color: #222;
+      cursor: grab;
+      z-index: 2;
+      user-select: none;
+      box-shadow: 1px 1px 2px #0001;
+      pointer-events: auto;
+    }
+    .stud-point {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: #fff;
+      border: 1px solid #5e5e5e33;
+      border-radius: 50%;
+      z-index: 10;
+      pointer-events: auto;
+      box-shadow: 0 0 2px #0005;
+      cursor: pointer;
+    }
+    .button-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .button-stack button {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .pencil-color-btn:focus { outline: 2px solid #222; }
+    .pointer-arrow-btn:focus { outline: 2px solid #222; }
+    .footer-credit {
+      position: fixed;
+      right: 18px;
+      bottom: 10px;
+      font-size: 13px;
+      color: #888;
+      background: rgba(255,255,255,0.7);
+      padding: 2px 10px;
+      border-radius: 8px;
+      z-index: 100;
+      pointer-events: none;
+      font-family: inherit;
+    }
+    .thumbnails-scroll {
+      max-height: 60vh;
+      overflow-y: auto;
+      margin-top: 8px;
+      margin-bottom: 8px;
+    }
+    #thumbnails.thumbnails-scroll {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      justify-items: center;
+      align-items: start;
+      /* width removed to prevent overflow */
+    }
+    #settings-gear-container {
+      position: fixed;
+      left: 18px;
+      bottom: 10px;
+      z-index: 101;
+      display: flex;
+      flex-direction: row;
+      align-items: flex-end;
+      background: rgba(255,255,255,0.9);
+      border-radius: 10px;
+      box-shadow: 0 2px 8px #0001;
+      padding: 2px 8px;
+    }
+    #settings-gear {
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    #settings-gear:hover {
+      background: #eee;
+    }
+    #settings-menu {
+      margin-top: 0;
+      margin-left: 8px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px #0002;
+      padding: 10px 16px;
+      font-size: 15px;
+      color: #222;
+      min-width: 140px;
+      position: absolute;
+      left: 44px;
+      bottom: 0;
+    }
+    body.dark-bg {
+      background: #222 !important;
+    }
+    body.dark-bg #grid-area {
+      background: #222 !important;
+    }
+    body.dark-bg .grid {
+      background-image: linear-gradient(to right, #444 1px, transparent 1px),
+                        linear-gradient(to bottom, #444 1px, transparent 1px);
+    }
+    body.dark-bg #upload-area {
+      background: #222 !important;
+      color: #eee;
+    }
+    body.dark-bg #settings-menu {
+      background: #333;
+      color: #eee;
+      border-color: #444;
+    }
+    body.horizontal-bar {
+      flex-direction: column;
+    }
+    body.horizontal-bar #upload-area {
+      width: 100vw;
+      height: 280px;
+      min-height: 0;
+      border-right: none;
+      border-bottom: 1px solid #ccc;
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      padding: 10px 10px 0 10px;
+      overflow: visible;
+      position: relative;
+    }
+    body.horizontal-bar .button-stack {
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 0;
+      margin-right: 16px;
+      align-items: flex-start;
+      min-width: 160px;
+      max-width: 180px;
+      flex: 0 0 auto;
+      z-index: 2;
+      background: inherit;
+    }
+    body.horizontal-bar #thumbnails.thumbnails-scroll {
+      display: grid;
+      grid-auto-flow: column;
+      grid-template-rows: repeat(2, 120px);
+      gap: 4px;
+      width: 100%;
+      margin-top: 0;
+      margin-bottom: 0;
+      background: none;
+      align-items: flex-start;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+    }
+    body.horizontal-bar .thumbnail {
+      width: 120px;
+      height: 120px;
+      margin: 2px;
+      /* grid handles sizing */
+    }
+    body.horizontal-bar #image-search,
+    body.horizontal-bar h3 {
+      display: none;
+    }
+    body.horizontal-bar #grid-area {
+      flex: 1 1 auto;
+      height: calc(100vh - 340px);
+      min-height: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="upload-area">
+    <div class="button-stack">
+      <button id="draw-toggle">Draw Mode</button>
+      <div id="pencil-colors" style="margin-top:4px;"></div>
+      <button id="pointer-toggle">Pointer</button>
+      <div id="pointer-arrows" style="display:none; margin: 8px 0;"></div>
+      <button id="text-toggle">Text Mode</button>
+      <button id="delete-toggle">Delete Mode</button>
+      <button id="export-png" type="button">Export as PNG</button>
+      <button id="clear-all" type="button" style="background:#eee;color:#333;">Clear Grid</button>
+    </div>
+    <h3>Upload Images</h3>
+    <input type="text" id="image-search" placeholder="Search images..." style="width:100%;margin-bottom:8px;box-sizing:border-box;"/>
+    <input type="file" id="image-upload" accept="image/*" multiple/>
+    <div id="thumbnails" class="clearfix thumbnails-scroll"></div>
+  </div>
+  <div id="grid-area">
+    <canvas id="line-canvas"></canvas>
+    <div class="grid"></div>
+  </div>
+
+  <div class="footer-credit">Created by Jelle Bultiauw © 2025</div>
+  <div id="settings-gear-container">
+    <button id="settings-gear" title="Settings">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 5 15.4a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09c0 .66.39 1.26 1 1.51a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l.06-.06A1.65 1.65 0 0 0 19.4 9c.13.31.2.65.2 1v.09c0 .66-.39 1.26-1 1.51a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 2.83 2.83l.06-.06A1.65 1.65 0 0 0 19.4 15z"/></svg>
+    </button>
+    <div id="settings-menu" style="display:none;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="toggle-bg" />
+        Dark background
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;">
+        <input type="checkbox" id="toggle-horizontal" />
+        Horizontal image bar
+      </label>
+    </div>
+  </div>
+
+  <script>
+    const uploadInput = document.getElementById('image-upload');
+    const thumbnails = document.getElementById('thumbnails');
+    const gridArea = document.getElementById('grid-area');
+    const canvas = document.getElementById('line-canvas');
+    const ctx = canvas.getContext('2d');
+    const deleteToggle = document.getElementById('delete-toggle');
+    const drawToggle = document.getElementById('draw-toggle');
+    const textToggle = document.getElementById('text-toggle');
+    const pointerToggle = document.getElementById('pointer-toggle');
+    const exportPngBtn = document.getElementById('export-png');
+    const pencilColorsDiv = document.getElementById('pencil-colors');
+    const pointerArrowsDiv = document.getElementById('pointer-arrows');
+    const clearAllBtn = document.getElementById('clear-all');
+    const toggleHorizontal = document.getElementById('toggle-horizontal');
+
+    let images = [];
+    let drawingMode = false;
+    let lineDrawing = false;
+    let currentLine = [];
+    let lastDirection = null;
+    let selectedImage = null;
+    let deleteMode = false;
+    let textMode = false;
+    let selectedPencilColor = '#0074d9';
+    const GRID_SIZE = 20;
+    let allLines = [];
+    const presetColors = ['#000000', '#0074d9', '#ff4136', '#2ecc40', '#ffdc00', '#b10dc9', '#ff851b', '#7fdbff', '#aaaaaa'];
+    let pointerMode = false;
+    let selectedPointerDir = 'right';
+    let pointers = [];
+    const pointerDirections = [
+      { dir: 'up', symbol: '↑' },
+      { dir: 'down', symbol: '↓' },
+      { dir: 'left', symbol: '←' },
+      { dir: 'right', symbol: '→' }
+    ];
+
+    function resizeCanvas() {
+      canvas.width = gridArea.clientWidth;
+      canvas.height = gridArea.clientHeight;
+    }
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      drawAllLines();
+    });
+    resizeCanvas();
+
+    function makeThumbnailDraggable(el) {
+      el.draggable = true;
+      el.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', el.src);
+        e.dataTransfer.setData('type', 'thumbnail');
+      });
+    }
+
+    // Helper to get filename from src or File
+    function getFileName(srcOrFile) {
+      if (typeof srcOrFile === 'string') {
+        // For preset images, src is a path
+        const parts = srcOrFile.split('/');
+        return parts[parts.length - 1];
+      } else if (srcOrFile && srcOrFile.name) {
+        return srcOrFile.name;
+      }
+      return '';
+    }
+
+    // Filter thumbnails by search
+    function filterThumbnails() {
+      const search = document.getElementById('image-search').value.trim().toLowerCase();
+      const thumbs = thumbnails.querySelectorAll('.thumbnail');
+      thumbs.forEach(thumb => {
+        const fname = (thumb.dataset.filename || '').toLowerCase();
+        if (!search || fname.startsWith(search)) {
+          thumb.style.display = '';
+        } else {
+          thumb.style.display = 'none';
+        }
+      });
+    }
+
+    // Attach search event
+    document.addEventListener('DOMContentLoaded', function() {
+      const searchInput = document.getElementById('image-search');
+      searchInput.addEventListener('input', filterThumbnails);
+    });
+
+    uploadInput.addEventListener('change', (e) => {
+      Array.from(e.target.files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const thumb = document.createElement('img');
+          thumb.src = reader.result;
+          thumb.className = 'thumbnail';
+          thumb.dataset.filename = getFileName(file);
+          makeThumbnailDraggable(thumb);
+          thumbnails.appendChild(thumb);
+          filterThumbnails();
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    gridArea.addEventListener('dragover', (e) => {
+      disableAllModes();
+      e.preventDefault();
+    });
+
+    gridArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (drawingMode || deleteMode) return;
+      const src = e.dataTransfer.getData('text/plain');
+      const type = e.dataTransfer.getData('type');
+      if (type === 'thumbnail') {
+        const img = document.createElement('img');
+        img.src = src;
+        img.className = 'draggable-img';
+        const rect = gridArea.getBoundingClientRect();
+        img.style.left = `${snapToGrid(e.clientX - rect.left - 30)}px`;
+        img.style.top = `${snapToGrid(e.clientY - rect.top - 30)}px`;
+        makeDraggable(img);
+        img.addEventListener('pointerup', updateStudsOnImageChange);
+        gridArea.appendChild(img);
+        images.push(img);
+        updateStudsOnImageChange();
+      }
+    });
+
+    function makeDraggable(el) {
+      let offsetX = 0, offsetY = 0, isDragging = false;
+
+      function onPointerDown(e) {
+        if (deleteMode || lineDrawing || (drawingMode && !lineDrawing)) return;
+        isDragging = true;
+        offsetX = e.offsetX;
+        offsetY = e.offsetY;
+        bringToFront(el);
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', onPointerUp);
+        e.preventDefault();
+      }
+      function onPointerMove(e) {
+        if (!isDragging) return;
+        const rect = gridArea.getBoundingClientRect();
+        const x = e.clientX - rect.left - offsetX;
+        const y = e.clientY - rect.top - offsetY;
+        el.style.left = `${snapToGrid(x)}px`;
+        el.style.top = `${snapToGrid(y)}px`;
+      }
+      function onPointerUp() {
+        isDragging = false;
+        el.style.zIndex = 2;
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        updateStudsOnImageChange();
+      }
+      el.removeEventListener('pointerdown', onPointerDown);
+      el.addEventListener('pointerdown', onPointerDown);
+    }
+
+    function bringToFront(el) {
+      images.forEach(img => img.style.zIndex = 1);
+      el.style.zIndex = 2;
+    }
+
+    function removeImage(img) {
+      if (confirm("Are you sure you want to delete this image?")) {
+        img.remove();
+        images = images.filter(i => i !== img);
+      }
+    }
+
+    function disableAllModes() {
+      if (drawingMode) {
+        drawingMode = false;
+        drawToggle.textContent = "Draw Mode";
+        gridArea.classList.remove('drawing-mode');
+        lineDrawing = false;
+        currentLine = [];
+        drawAllLines();
+        removeAllStuds();
+      }
+      if (deleteMode) {
+        deleteMode = false;
+        deleteToggle.textContent = "Delete Mode";
+        gridArea.classList.remove('drawing-mode');
+      }
+      if (textMode) {
+        textMode = false;
+        textToggle.textContent = "Text Mode";
+      }
+      if (pointerMode) {
+        pointerMode = false;
+        pointerToggle.textContent = 'Pointer';
+        pointerArrowsDiv.style.display = 'none';
+      }
+    }
+
+    deleteToggle.addEventListener('click', () => {
+      if (deleteMode) {
+        disableAllModes();
+      } else {
+        disableAllModes();
+        deleteMode = true;
+        deleteToggle.textContent = "Exit Delete Mode";
+        gridArea.classList.add('drawing-mode');
+      }
+    });
+
+    drawToggle.addEventListener('click', () => {
+      if (drawingMode) {
+        disableAllModes();
+        removeAllStuds();
+      } else {
+        disableAllModes();
+        drawingMode = true;
+        drawToggle.textContent = "Exit Draw Mode";
+        gridArea.classList.add('drawing-mode');
+        lineDrawing = false;
+        currentLine = [];
+        drawAllLines();
+        showAllStuds();
+      }
+    });
+
+    textToggle.addEventListener('click', () => {
+      if (textMode) {
+        disableAllModes();
+      } else {
+        disableAllModes();
+        textMode = true;
+        textToggle.textContent = "Exit Text Mode";
+      }
+    });
+
+    pointerToggle.addEventListener('click', () => {
+      if (pointerMode) {
+        disableAllModes();
+      } else {
+        disableAllModes();
+        pointerMode = true;
+        pointerToggle.textContent = 'Exit Pointer';
+        pointerArrowsDiv.style.display = '';
+        renderPointerArrows();
+      }
+    });
+
+    function renderPencilColors() {
+      pencilColorsDiv.innerHTML = '';
+      presetColors.forEach(color => {
+        const btn = document.createElement('button');
+        btn.className = 'pencil-color-btn';
+        btn.style.background = color;
+        btn.style.border = color === selectedPencilColor ? '3px solid #222' : '1px solid #888';
+        btn.style.width = '28px';
+        btn.style.height = '28px';
+        btn.style.marginRight = '4px';
+        btn.style.borderRadius = '50%';
+        btn.style.cursor = 'pointer';
+        btn.title = color;
+        btn.addEventListener('click', () => {
+          selectedPencilColor = color;
+          renderPencilColors();
+        });
+        pencilColorsDiv.appendChild(btn);
+      });
+    }
+
+    function renderPointerArrows() {
+      pointerArrowsDiv.innerHTML = '';
+      pointerDirections.forEach(({ dir, symbol }) => {
+        const btn = document.createElement('button');
+        btn.className = 'pointer-arrow-btn';
+        btn.textContent = symbol;
+        btn.style.fontSize = '18px';
+        btn.style.marginRight = '4px';
+        btn.style.border = dir === selectedPointerDir ? '2px solid #222' : '1px solid #888';
+        btn.style.background = '#fff';
+        btn.style.borderRadius = '50%';
+        btn.style.width = '32px';
+        btn.style.height = '32px';
+        btn.style.cursor = 'pointer';
+        btn.title = dir;
+        btn.addEventListener('click', () => {
+          selectedPointerDir = dir;
+          renderPointerArrows();
+        });
+        pointerArrowsDiv.appendChild(btn);
+      });
+    }
+
+    exportPngBtn.addEventListener('click', () => {
+      function doExport(drawImages) {
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = gridArea.clientWidth;
+        exportCanvas.height = gridArea.clientHeight;
+        const exportCtx = exportCanvas.getContext('2d');
+
+        // Draw all lines
+        for (const line of allLines) {
+          const pts = line.points || line;
+          const color = line.color || '#000';
+          if (pts.length > 1) {
+            exportCtx.beginPath();
+            exportCtx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) {
+              exportCtx.lineTo(pts[i].x, pts[i].y);
+            }
+            exportCtx.strokeStyle = color;
+            exportCtx.lineWidth = 2;
+            exportCtx.lineJoin = 'round';
+            exportCtx.lineCap = 'round';
+            exportCtx.stroke();
+          }
+        }
+
+        // Draw all images (if allowed)
+        if (drawImages) {
+          images.forEach(img => {
+            const x = parseInt(img.style.left, 10) || 0;
+            const y = parseInt(img.style.top, 10) || 0;
+            exportCtx.drawImage(img, x, y, img.width, img.height);
+          });
+        }
+
+        // Draw all text
+        const textEls = gridArea.querySelectorAll('.draggable-text');
+        textEls.forEach(div => {
+          const x = parseInt(div.style.left, 10) || 0;
+          const y = parseInt(div.style.top, 10) || 0;
+          const style = window.getComputedStyle(div);
+          exportCtx.save();
+          exportCtx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+          exportCtx.fillStyle = style.color;
+          exportCtx.textBaseline = 'top';
+          exportCtx.textAlign = 'start';
+          const paddingX = 8, paddingY = 4;
+          const minWidth = 40, minHeight = 24;
+          const textMetrics = exportCtx.measureText(div.textContent);
+          const textWidth = Math.max(minWidth, textMetrics.width + 2 * paddingX);
+          const textHeight = Math.max(minHeight, parseInt(style.fontSize) + 2 * paddingY);
+          exportCtx.fillStyle = style.backgroundColor !== 'rgba(0, 0, 0, 0)' ? style.backgroundColor : '#fffbe7';
+          exportCtx.strokeStyle = style.borderColor !== 'rgba(0, 0, 0, 0)' ? style.borderColor : '#aaa';
+          exportCtx.lineWidth = 1;
+          exportCtx.beginPath();
+          exportCtx.roundRect(x, y, textWidth, textHeight, 4);
+          exportCtx.fill();
+          exportCtx.stroke();
+          exportCtx.fillStyle = style.color;
+          exportCtx.fillText(div.textContent, x + paddingX, y + paddingY);
+          exportCtx.restore();
+        });
+
+        // Draw all pointers (arrows)
+        pointers.forEach(ptr => {
+          drawPointerArrowExport(exportCtx, ptr.x, ptr.y, ptr.direction);
+        });
+
+        // Try to export as PNG
+        exportCanvas.toBlob(blob => {
+          if (!blob) {
+            alert('Export failed due to browser security restrictions. To export with images, please open this file using Live Server or a local web server, not by double-clicking the HTML file.');
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'schematic.png';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 100);
+        });
+      }
+
+      // Try with images first
+      try {
+        doExport(true);
+      } catch (e) {
+        // If it fails, try again without images and show a warning
+        doExport(false);
+        alert('Images could not be exported due to browser security restrictions. The grid, lines, text, and pointers were exported. To export with images, please open this file using Live Server or a local web server, not by double-clicking the HTML file.');
+      }
+    });
+
+    // Draw a pointer arrow on export canvas
+    function drawPointerArrowExport(ctx, x, y, direction) {
+      ctx.save();
+      ctx.translate(x, y);
+      let angle = 0;
+      if (direction === 'right') angle = 0;
+      if (direction === 'down') angle = -Math.PI / 2;
+      if (direction === 'left') angle = Math.PI;
+      if (direction === 'up') angle = Math.PI / 2;
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(12, -6);
+      ctx.lineTo(12, 6);
+      ctx.closePath();
+      ctx.fillStyle = '#222';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function startDrawingFromImage(img) {
+      lineDrawing = true;
+      selectedImage = img;
+      currentLine = [getCenter(img)];
+      lastDirection = null;
+    }
+
+    function stopDrawing() {
+      lineDrawing = false;
+      selectedImage = null;
+      lastDirection = null;
+      currentLine = [];
+    }
+
+    function connectDrawingToImage(img) {
+      const pos = getCenter(img);
+      const last = currentLine[currentLine.length - 1];
+      const nextDir = getNextDirection();
+      let stepPoint;
+      if (nextDir === 'horizontal') {
+        stepPoint = { x: pos.x, y: last.y };
+      } else {
+        stepPoint = { x: last.x, y: pos.y };
+      }
+      currentLine.push(snapToGridPoint(stepPoint), snapToGridPoint(pos));
+      allLines.push({ points: [...currentLine], color: selectedPencilColor });
+      drawAllLines();
+      stopDrawing();
+    }
+
+    function getNextDirection() {
+      if (!lastDirection) return 'horizontal';
+      return lastDirection === 'horizontal' ? 'vertical' : 'horizontal';
+    }
+
+    function finishSegment(e) {
+      const pos = getMousePos(e);
+      const last = currentLine[currentLine.length - 1];
+      let nextPoint;
+      const nextDir = getNextDirection();
+      if (nextDir === 'horizontal') {
+        nextPoint = { x: pos.x, y: last.y };
+      } else {
+        nextPoint = { x: last.x, y: pos.y };
+      }
+      currentLine.push(snapToGridPoint(nextPoint));
+      lastDirection = nextDir;
+      drawLine(currentLine);
+    }
+
+    function getMousePos(e) {
+      const rect = gridArea.getBoundingClientRect();
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    }
+
+    function getCenter(el) {
+      const rect = el.getBoundingClientRect();
+      const areaRect = gridArea.getBoundingClientRect();
+      const x = rect.left - areaRect.left + rect.width / 2;
+      const y = rect.top - areaRect.top + rect.height / 2;
+      return snapToGridPoint({ x, y });
+    }
+
+    function snapToGrid(n) {
+      return Math.round(n / GRID_SIZE) * GRID_SIZE;
+    }
+
+    function snapToGridPoint(point) {
+      return {
+        x: snapToGrid(point.x),
+        y: snapToGrid(point.y)
+      };
+    }
+
+    function drawAllLines() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const line of allLines) {
+        const pts = line.points || line;
+        const color = line.color || '#000';
+        if (pts.length > 1) {
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+          }
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+          ctx.stroke();
+        }
+      }
+      // Draw pointers
+      pointers.forEach(ptr => {
+        drawPointerArrow(ptr.x, ptr.y, ptr.direction);
+      });
+    }
+
+    function drawLine(points) {
+      drawAllLines();
+      if (points.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+    }
+
+    gridArea.addEventListener('mousemove', (e) => {
+      if (!lineDrawing) return;
+      const last = currentLine[currentLine.length - 1];
+      const pos = snapToGridPoint(getMousePos(e));
+      const previewLine = [...currentLine];
+      const nextDir = getNextDirection();
+      const tempPoint = (nextDir === 'horizontal')
+        ? { x: pos.x, y: last.y }
+        : { x: last.x, y: pos.y };
+      previewLine.push(tempPoint, pos);
+      drawLine(previewLine);
+    });
+
+    function isPointNearLineSegment(px, py, x1, y1, x2, y2, threshold) {
+      const A = px - x1;
+      const B = py - y1;
+      const C = x2 - x1;
+      const D = y2 - y1;
+      const dot = A * C + B * D;
+      const len_sq = C * C + D * D;
+      let param = -1;
+      if (len_sq !== 0) param = dot / len_sq;
+      let xx, yy;
+      if (param < 0) {
+        xx = x1;
+        yy = y1;
+      } else if (param > 1) {
+        xx = x2;
+        yy = y2;
+      } else {
+        xx = x1 + param * C;
+        yy = y1 + param * D;
+      }
+      const dx = px - xx;
+      const dy = py - yy;
+      return Math.sqrt(dx * dx + dy * dy) <= threshold;
+    }
+
+    gridArea.addEventListener('pointerdown', (e) => {
+      const target = e.target;
+
+      if (deleteMode) {
+        const rect = gridArea.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const pointerThreshold = 12;
+        for (let i = 0; i < pointers.length; i++) {
+          const ptr = pointers[i];
+          const dx = x - ptr.x;
+          const dy = y - ptr.y;
+          if (Math.sqrt(dx * dx + dy * dy) <= pointerThreshold) {
+            pointers.splice(i, 1);
+            drawAllLines();
+            return;
+          }
+        }
+      }
+
+      if (target.classList.contains('draggable-img')) {
+        if (deleteMode) {
+          removeImage(target);
+          return;
+        }
+
+      } else if (deleteMode) {
+        const rect = gridArea.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const threshold = 8;
+        let found = false;
+        for (let i = 0; i < allLines.length; i++) {
+          const line = allLines[i];
+          const pts = line.points || line;
+          for (let j = 0; j < pts.length - 1; j++) {
+            if (isPointNearLineSegment(x, y, pts[j].x, pts[j].y, pts[j+1].x, pts[j+1].y, threshold)) {
+              allLines.splice(i, 1);
+              drawAllLines();
+              found = true;
+              break;
+            }
+          }
+          if (found) break;
+        }
+        return;
+      } else if (lineDrawing) {
+        finishSegment(e);
+      } else if (textMode && !target.classList.contains('draggable-img') && !target.classList.contains('draggable-text')) {
+        const rect = gridArea.getBoundingClientRect();
+        const x = snapToGrid(e.clientX - rect.left);
+        const y = snapToGrid(e.clientY - rect.top);
+        const text = prompt('Enter text:');
+        if (text) {
+          const div = document.createElement('div');
+          div.textContent = text;
+          div.className = 'draggable-text';
+          div.style.left = `${x}px`;
+          div.style.top = `${y}px`;
+          makeTextDraggable(div);
+          gridArea.appendChild(div);
+        }
+        return;
+      }
+
+      if (deleteMode && target.classList.contains('draggable-text')) {
+        target.remove();
+        return;
+      }
+
+      if (drawingMode) {
+        const rect = gridArea.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const threshold = 8;
+        for (let i = 0; i < allLines.length; i++) {
+          const line = allLines[i];
+          const pts = line.points || line;
+          for (let j = 0; j < pts.length - 1; j++) {
+            if (isPointNearLineSegment(x, y, pts[j].x, pts[j].y, pts[j+1].x, pts[j+1].y, threshold)) {
+              allLines[i].color = selectedPencilColor;
+              drawAllLines();
+              return;
+            }
+          }
+        }
+      }
+
+      if (pointerMode) {
+
+        const rect = gridArea.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const threshold = 8;
+        for (let i = 0; i < allLines.length; i++) {
+          const line = allLines[i];
+          const pts = line.points || line;
+          for (let j = 0; j < pts.length - 1; j++) {
+            if (isPointNearLineSegment(x, y, pts[j].x, pts[j].y, pts[j+1].x, pts[j+1].y, threshold)) {
+
+              const A = x - pts[j].x;
+              const B = y - pts[j].y;
+              const C = pts[j+1].x - pts[j].x;
+              const D = pts[j+1].y - pts[j].y;
+              const len_sq = C * C + D * D;
+              let param = -1;
+              if (len_sq !== 0) param = (A * C + B * D) / len_sq;
+              let px, py;
+              if (param < 0) {
+                px = pts[j].x;
+                py = pts[j].y;
+              } else if (param > 1) {
+                px = pts[j+1].x;
+                py = pts[j+1].y;
+              } else {
+                px = pts[j].x + param * C;
+                py = pts[j].y + param * D;
+              }
+              pointers.push({ x: px, y: py, direction: selectedPointerDir });
+              drawAllLines();
+              return;
+            }
+          }
+        }
+        return;
+      }
+    });
+
+    gridArea.addEventListener('contextmenu', (e) => {
+      if (lineDrawing) {
+        stopDrawing();
+        drawAllLines();
+        e.preventDefault();
+      }
+    });
+
+    function makeTextDraggable(el) {
+      let offsetX = 0, offsetY = 0, isDragging = false;
+      function onPointerDown(e) {
+        if (deleteMode) {
+          el.remove();
+          return;
+        }
+        if (lineDrawing || drawingMode) return;
+        isDragging = true;
+        offsetX = e.offsetX;
+        offsetY = e.offsetY;
+        el.style.zIndex = 3;
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', onPointerUp);
+        e.preventDefault();
+      }
+      function onPointerMove(e) {
+        if (!isDragging) return;
+        const rect = gridArea.getBoundingClientRect();
+        const x = e.clientX - rect.left - offsetX;
+        const y = e.clientY - rect.top - offsetY;
+        el.style.left = `${snapToGrid(x)}px`;
+        el.style.top = `${snapToGrid(y)}px`;
+      }
+      function onPointerUp() {
+        isDragging = false;
+        el.style.zIndex = 2;
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+      }
+      el.removeEventListener('pointerdown', onPointerDown);
+      el.addEventListener('pointerdown', onPointerDown);
+    }
+
+    function createStudsForImage(img) {
+      removeStudsForImage(img);
+      const imgLeft = parseInt(img.style.left, 10) || 0;
+      const imgTop = parseInt(img.style.top, 10) || 0;
+      const w = img.width;
+      const h = img.height;
+      const studsPerSide = 7;
+      const points = [];
+      // Top side
+      for (let i = 0; i < studsPerSide; i++) {
+        points.push({ x: imgLeft + (w / (studsPerSide - 1)) * i, y: imgTop });
+      }
+      // Bottom side
+      for (let i = 0; i < studsPerSide; i++) {
+        points.push({ x: imgLeft + (w / (studsPerSide - 1)) * i, y: imgTop + h });
+      }
+      // Left side
+      for (let i = 1; i < studsPerSide - 1; i++) { // skip corners (already added)
+        points.push({ x: imgLeft, y: imgTop + (h / (studsPerSide - 1)) * i });
+      }
+      // Right side
+      for (let i = 1; i < studsPerSide - 1; i++) { // skip corners (already added)
+        points.push({ x: imgLeft + w, y: imgTop + (h / (studsPerSide - 1)) * i });
+      }
+      points.forEach((pt, idx) => {
+        const stud = document.createElement('div');
+        stud.className = 'stud-point';
+        stud.style.left = `${snapToGrid(pt.x) - 4}px`;
+        stud.style.top = `${snapToGrid(pt.y) - 4}px`;
+        stud.dataset.imgIndex = images.indexOf(img);
+        stud.dataset.studIndex = idx;
+        stud.addEventListener('pointerdown', function(e) {
+          e.stopPropagation();
+          if (drawingMode && !lineDrawing) {
+            startDrawingFromStud(snapToGrid(pt.x), snapToGrid(pt.y));
+          } else if (drawingMode && lineDrawing) {
+            finishLineAtStud(snapToGrid(pt.x), snapToGrid(pt.y));
+          }
+        });
+        gridArea.appendChild(stud);
+      });
+    }
+    function removeStudsForImage(img) {
+      const studs = gridArea.querySelectorAll('.stud-point');
+      studs.forEach(stud => {
+        if (parseInt(stud.dataset.imgIndex, 10) === images.indexOf(img)) {
+          stud.remove();
+        }
+      });
+    }
+    function removeAllStuds() {
+      const studs = gridArea.querySelectorAll('.stud-point');
+      studs.forEach(stud => stud.remove());
+    }
+    function showAllStuds() {
+      images.forEach(img => createStudsForImage(img));
+    }
+    function startDrawingFromStud(x, y) {
+      lineDrawing = true;
+      selectedImage = null;
+      currentLine = [{ x, y }];
+      lastDirection = null;
+    }
+    function updateStudsOnImageChange() {
+      if (drawingMode) {
+        removeAllStuds();
+        showAllStuds();
+      }
+    }
+    function finishLineAtStud(x, y) {
+      const last = currentLine[currentLine.length - 1];
+      const nextDir = getNextDirection();
+      let stepPoint;
+      if (nextDir === 'horizontal') {
+        stepPoint = { x: x, y: last.y };
+      } else {
+        stepPoint = { x: last.x, y: y };
+      }
+      currentLine.push(snapToGridPoint(stepPoint), { x, y });
+      allLines.push({ points: [...currentLine], color: selectedPencilColor });
+      drawAllLines();
+      stopDrawing();
+    }
+
+    // Draw a pointer arrow at (x, y) in the given direction
+    function drawPointerArrow(x, y, direction) {
+      ctx.save();
+      ctx.translate(x, y);
+      let angle = 0;
+      if (direction === 'right') angle = Math.PI;
+      if (direction === 'down') angle = -Math.PI / 2;
+      if (direction === 'left') angle = 0;
+      if (direction === 'up') angle = Math.PI / 2;
+
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(12, -6);
+      ctx.lineTo(12, 6);
+      ctx.closePath();
+      ctx.fillStyle = '#222';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Ensure color buttons are rendered after all DOM is ready
+    renderPencilColors();
+
+    clearAllBtn.addEventListener('click', () => {
+      if (!confirm('Are you sure you want to clear the entire grid?')) return;
+      // Remove all images
+      images.forEach(img => img.remove());
+      images = [];
+      // Remove all lines
+      allLines = [];
+      // Remove all text
+      document.querySelectorAll('.draggable-text').forEach(el => el.remove());
+      // Remove all pointers
+      pointers = [];
+      // Remove all studs
+      removeAllStuds();
+      drawAllLines();
+    });
+
+    // Settings gear logic
+    const settingsGear = document.getElementById('settings-gear');
+    const settingsMenu = document.getElementById('settings-menu');
+    const toggleBg = document.getElementById('toggle-bg');
+
+    settingsGear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      settingsMenu.style.display = settingsMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', (e) => {
+      if (!settingsMenu.contains(e.target) && e.target !== settingsGear) {
+        settingsMenu.style.display = 'none';
+      }
+    });
+    toggleBg.addEventListener('change', (e) => {
+      if (toggleBg.checked) {
+        document.body.classList.add('dark-bg');
+      } else {
+        document.body.classList.remove('dark-bg');
+      }
+    });
+
+    // Set initial state
+    if (localStorage.getItem('horizontalBar') === 'true') {
+      document.body.classList.add('horizontal-bar');
+      toggleHorizontal.checked = true;
+    }
+
+    toggleHorizontal.addEventListener('change', (e) => {
+      if (toggleHorizontal.checked) {
+        document.body.classList.add('horizontal-bar');
+        localStorage.setItem('horizontalBar', 'true');
+      } else {
+        document.body.classList.remove('horizontal-bar');
+        localStorage.setItem('horizontalBar', 'false');
+      }
+      // Trigger a resize to fix canvas/grid
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+    });
+  </script>
+</body>
+</html>
